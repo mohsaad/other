@@ -4,6 +4,7 @@
 
 import sys
 import networkx as nx
+import matplotlib.pyplot as plt
 
 # Generate a graph
 G = nx.Graph()
@@ -36,3 +37,7 @@ with open(sys.argv[1], 'r') as f:
         G.add_edge(int(edge[0]), int(edge[1]))
 
 f.close()
+
+plt.figure()
+nx.draw(G)
+plt.show()
