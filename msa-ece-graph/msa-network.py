@@ -62,3 +62,12 @@ plt.show()
 
 # Some statistics
 # rank the most-connected people
+
+num_friends = [(name_dict[_i], len(G.neighbors(_i))) for _i in range(0, G.order())]
+
+sorted_friends = sorted(num_friends, key = lambda ind : ind[1], reverse = True)
+
+print("Rankings of number of people known:")
+print("Name  # friends")
+for i in range(0, len(sorted_friends) - 1):
+    print("{0} {1}".format(sorted_friends[i][0], sorted_friends[i][1]))
