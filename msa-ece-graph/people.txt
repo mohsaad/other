@@ -1,5 +1,4 @@
-22
-Mohammad Saad 0 0
+25
 Jamshed Kaikaus 1 0
 Mosab Elagha 2 0
 Amr Martini 3 0
@@ -22,7 +21,10 @@ Lina Aldadah 19 3
 Omar Soumare 20 3
 Mohammad Omar 21 3
 Saleh Raghib 22 0
-30
+Saleh Ahmad 23 2
+Navid Sadman 24 2
+Taofeek Oyedele 25 1
+49
 1 2
 1 3
 1 4
@@ -31,10 +33,11 @@ Saleh Raghib 22 0
 2 3
 2 4
 2 6
+3 8
+6 8
 2 10
 2 15
 2 20
-2 13
 3 4
 3 10
 4 10
@@ -53,4 +56,21 @@ Saleh Raghib 22 0
 14 17
 7 9
 7 8
-10 12
+7 12
+9 11
+9 22
+11 22
+6 18
+3 18
+7 10
+7 22
+6 23
+2 5
+2 24
+6 25
+1 25
+23 25
+19 25
+24 25
+13 8
+8 18
