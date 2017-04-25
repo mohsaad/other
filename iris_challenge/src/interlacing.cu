@@ -8,19 +8,19 @@
 
 */
 
-__global__ void flip_image_kernel(uint8_t* input_image, size_t num_elements, size_t num_channels)
+__global__ void flip_image_kernel(uint8_t* input_image, size_t num_rows, size_t num_cols, size_t num_elements)
 {
     uint8_t temp;
-    int tx = blockIdx.x * blockDim.x + threadIdx.x;
+    int ty = blockIdx.x * blockDim.x + threadIdx.x;
+    int tx = blockIdx.y * blockDim.y + threadIdx.y;
 
-    size_t channel_ind = tx % num_channels;
-    size_t pixel_ind = tx / num_channels;
+    size_t pixel_ind = ty*num_rows + tx;
 
-    if(tx < num_elements / num_channels / 2)
+    if(pixel_ind < num_elements /  2)
     {
-        temp = input_image[pixel_ind + channel_ind];
-        input_image[pixel_ind + channel_ind] = input_image[num_elements - num_channels*(pixel_ind + 1) + channel_ind];
-        input_image[num_elements - num_channels*(pixel_ind + 1) + channel_ind] = temp;
+        temp = input_image[pixel_ind];
+        input_image[pixel_ind] = input_image[num_elements - (pixel_ind + 1)];
+        input_image[num_elements - (pixel_ind + 1)] = temp;
     }
 }
 
@@ -100,33 +100,48 @@ void Interlacer::interlace()
     Mat resized_frame_1, resized_frame_2;
 
     // create a stream
-    // cudaStreamCreate(&stream);
+    cudaStreamCreate(&stream);
     //
-    // double * image_1;
-    // cudaMalloc((void**)&image_1, sizeof(double)*height*width);
+    uint8_t * image_1;
+    gpuErrchk(cudaMalloc((void**)&image_1, sizeof(uint8_t)*height*width));
 
-    // Dim3 dimBlock()
+    // grid and block dimensions for the video
+    dim3 dimGrid(ceil(height * 1.0/BLOCK_SIZE), ceil(width * 1.0/BLOCK_SIZE), 1);
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
     int i = 0;
+    // loop through each frame until we have
     while(video_1->read(video_frame_1) && video_2->read(video_frame_2))
     {
-        // cudaMemcpyAsync(&stream, (double)video_frame_1, sizeof(double)*height*width);
-
+        // convert to grayscale in case it already isn't
         cvtColor(video_frame_1, gray_frame_1, CV_BGR2GRAY);
         cvtColor(video_frame_2, gray_frame_2, CV_BGR2GRAY);
 
+        // resize to max resolution
         resize(gray_frame_1, resized_frame_1, cv::Size(width, height));
         resize(gray_frame_2, resized_frame_2, cv::Size(width, height));
 
-        flip_image(resized_frame_1);
+        // copy first image to GPU
+        cudaMemcpyAsync(image_1, (uint8_t*)resized_frame_1.data, sizeof(uint8_t)*height*width, cudaMemcpyHostToDevice, stream);
+        // execute kernel, doesn't block so we can continue doing work on CPU
+        flip_image_kernel<<<dimGrid, dimBlock, 0, stream>>>(image_1, width, height, height*width);
+
+        // flip the second image
         flip_image(resized_frame_2);
 
+        // copy the kernel code which should be done by now - in case it isn't, we block until previous kernel calls finish
+        cudaMemcpy((uint8_t*)resized_frame_1.data, image_1, sizeof(uint8_t)*height*width, cudaMemcpyDeviceToHost);
         output_video->write(resized_frame_1);
         output_video->write(resized_frame_2);
 
+        // synchronize devices
+        cudaDeviceSynchronize();
         i++;
         std::cout << "Processed frames " << i << std::endl;
     }
+
+    cudaFree(image_1);
+    cudaStreamDestroy(stream);
 
 }
 
@@ -184,7 +199,7 @@ void Interlacer::read_second_video(const string & video_2_name)
 void Interlacer::initialize_output_video(const string & video_output_name)
 {
     output_video = new VideoWriter();
-    if(!output_video->open(video_output_name, CV_FOURCC('M','J','P','G'), 1, cv::Size(width, height), false))
+    if(!output_video->open(video_output_name, CV_FOURCC('M','J','P','G'), 10, cv::Size(width, height), false))
     {
         std::cout << "Bad file initialization!" << std::endl;
         reset_videos();

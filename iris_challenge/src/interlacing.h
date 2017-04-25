@@ -25,8 +25,21 @@
 #include <string>
 #include <algorithm>
 
+#define BLOCK_SIZE 256
+
+
 using namespace cv;
 using namespace std;
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 
 /*
     This class defines the functions which we will be using to interlace,
@@ -92,7 +105,8 @@ class Interlacer
         // A CPU-based image inverter.
         void flip_image(Mat & im);
 
-        // cudaStream_t stream;
+        // A cuda stream for parallelization
+        cudaStream_t stream;
 
 };
 
