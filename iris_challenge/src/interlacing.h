@@ -51,7 +51,7 @@ class Interlacer
         /*
             Public constructor. Creates an interlacer object.
             Doesn't really do anything for now, as we don't have any member variables,
-
+            Sets most everything to null.
         */
         Interlacer();
 
@@ -67,7 +67,7 @@ class Interlacer
         /* An initialization function for both videos */
         void initialize_interlacer(const string & video_1_name, const string & video_2_name, const string & video_output_name);
 
-        /* interlace */
+        /*  The interlacing function. */
         void interlace();
 
 
@@ -87,8 +87,6 @@ class Interlacer
         calculations regarding when to put in a frame. */
         size_t height;
         size_t width;
-
-        string output_video_name;
 
         /* Method for reading the first video file */
         void read_first_video(const string & video_1_name);

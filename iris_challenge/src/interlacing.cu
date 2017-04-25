@@ -1,10 +1,13 @@
 #include "interlacing.h"
 
 /*
-    TODO:
-    * write test cases for differing heights/widths
-    * write test cases for null pointers
-    * write test case for kernels
+    flip_image_kernel
+    A CUDA kernel for inverting the image.
+    Inputs:
+        input_image -> a linearized array of the image
+        num_rows -> number of rows in image
+        num_cols -> number of columns in image
+        num_elements -> number of elements in image
 
 */
 
@@ -16,6 +19,11 @@ __global__ void flip_image_kernel(uint8_t* input_image, size_t num_rows, size_t 
 
     size_t pixel_ind = ty*num_rows + tx;
 
+    // Similar to the pixel swapping algorithm below,
+    // but this time we assign each thread to swap two pixels.
+    // the pixels are determined by the thread indices, both in x
+    // and in y. Using those, we can map the threads to a block
+    // and gain more parallelism that way.
     if(pixel_ind < num_elements /  2)
     {
         temp = input_image[pixel_ind];
@@ -60,6 +68,7 @@ void Interlacer::initialize_interlacer(const string & video_1_name, const string
 {
     reset_videos();
 
+    // read the videos
     read_first_video(video_1_name);
     read_second_video(video_2_name);
 
@@ -73,6 +82,9 @@ void Interlacer::initialize_interlacer(const string & video_1_name, const string
 
 void Interlacer::reset_videos()
 {
+    // if we want to call the destructor,
+    // release all videos first,
+    // and then delete the pointer
     if(video_1 != NULL)
     {
         video_1 -> release();
@@ -95,13 +107,20 @@ void Interlacer::reset_videos()
 
 void Interlacer::interlace()
 {
+    if(video_1 == NULL || video_2 == NULL || output_video == NULL)
+    {
+        std::cout << "Videos not initialized!" << std::endl;
+        return;
+    }
+
     Mat video_frame_1, video_frame_2;
     Mat gray_frame_1, gray_frame_2;
     Mat resized_frame_1, resized_frame_2;
 
     // create a stream
     cudaStreamCreate(&stream);
-    //
+
+    // create a device pointer
     uint8_t * image_1;
     gpuErrchk(cudaMalloc((void**)&image_1, sizeof(uint8_t)*height*width));
 
@@ -114,6 +133,7 @@ void Interlacer::interlace()
     while(video_1->read(video_frame_1) && video_2->read(video_frame_2))
     {
         // convert to grayscale in case it already isn't
+        // for now, we assume everything is grayscale because of ambiguity
         cvtColor(video_frame_1, gray_frame_1, CV_BGR2GRAY);
         cvtColor(video_frame_2, gray_frame_2, CV_BGR2GRAY);
 
@@ -142,6 +162,8 @@ void Interlacer::interlace()
 
     cudaFree(image_1);
     cudaStreamDestroy(stream);
+
+    std::cout << "Completed interlacing!" << std::endl;
 
 }
 
@@ -178,9 +200,8 @@ void Interlacer::read_first_video(const string & video_1_name)
     video_1 = new VideoCapture();
     if(!video_1->open(video_1_name))
     {
-        std::cout << "No file found for " << video_1_name << "!" << std::endl;
         reset_videos();
-        exit(-1);
+        throw std::invalid_argument("Video 1 file not found!");
     }
 
 }
@@ -190,9 +211,8 @@ void Interlacer::read_second_video(const string & video_2_name)
     video_2 = new VideoCapture();
     if(!video_2->open(video_2_name))
     {
-        std::cout << "No file found for " << video_2_name << "!" << std::endl;
         reset_videos();
-        exit(-1);
+        throw std::invalid_argument("Video 2 file not found!");
     }
 }
 
@@ -201,8 +221,7 @@ void Interlacer::initialize_output_video(const string & video_output_name)
     output_video = new VideoWriter();
     if(!output_video->open(video_output_name, CV_FOURCC('M','J','P','G'), 10, cv::Size(width, height), false))
     {
-        std::cout << "Bad file initialization!" << std::endl;
         reset_videos();
-        exit(-1);
+        throw std::invalid_argument("Output video invalid!");
     }
 }
