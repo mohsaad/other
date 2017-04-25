@@ -8,16 +8,19 @@
 
 */
 
-__global__ void flip_image_kernel(double* input_image, size_t image_size)
+__global__ void flip_image_kernel(uint8_t* input_image, size_t num_elements, size_t num_channels)
 {
-    double temp;
+    uint8_t temp;
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(tx < image_size / 2)
+    size_t channel_ind = tx % num_channels;
+    size_t pixel_ind = tx / num_channels;
+
+    if(tx < num_elements / num_channels / 2)
     {
-        temp = input_image[i];
-        input_image[i] = input_image[image_size - i];
-        imput_image[image_size - i] = temp;
+        temp = input_image[pixel_ind + channel_ind];
+        input_image[pixel_ind + channel_ind] = input_image[num_elements - num_channels*(pixel_ind + 1) + channel_ind];
+        input_image[num_elements - num_channels*(pixel_ind + 1) + channel_ind] = temp;
     }
 }
 
@@ -72,16 +75,19 @@ void Interlacer::reset_videos()
 {
     if(video_1 != NULL)
     {
+        video_1 -> release();
         delete video_1;
         video_1 = NULL;
     }
     if(video_2 != NULL)
     {
+        video_2 -> release();
         delete video_2;
         video_2 = NULL;
     }
     if(output_video != NULL)
     {
+        output_video->release();
         delete output_video;
         output_video = NULL;
     }
@@ -90,33 +96,66 @@ void Interlacer::reset_videos()
 void Interlacer::interlace()
 {
     Mat video_frame_1, video_frame_2;
+    Mat gray_frame_1, gray_frame_2;
+    Mat resized_frame_1, resized_frame_2;
 
     // create a stream
-    cudaStreamCreate(&stream);
+    // cudaStreamCreate(&stream);
+    //
+    // double * image_1;
+    // cudaMalloc((void**)&image_1, sizeof(double)*height*width);
 
-    double * image_1;
-    cudaMalloc((void**)&image_1, sizeof(double)*height*width);
+    // Dim3 dimBlock()
 
-    Dim3 dimBlock()
-
+    int i = 0;
     while(video_1->read(video_frame_1) && video_2->read(video_frame_2))
     {
-        cudaMemcpyAsync(&stream, (double)video_frame_1, sizeof(double)*height*width);
-        flip_image_kernel<<<
+        // cudaMemcpyAsync(&stream, (double)video_frame_1, sizeof(double)*height*width);
+
+        cvtColor(video_frame_1, gray_frame_1, CV_BGR2GRAY);
+        cvtColor(video_frame_2, gray_frame_2, CV_BGR2GRAY);
+
+        resize(gray_frame_1, resized_frame_1, cv::Size(width, height));
+        resize(gray_frame_2, resized_frame_2, cv::Size(width, height));
+
+        flip_image(resized_frame_1);
+        flip_image(resized_frame_2);
+
+        output_video->write(resized_frame_1);
+        output_video->write(resized_frame_2);
+
+        i++;
+        std::cout << "Processed frames " << i << std::endl;
     }
 
 }
 
 void Interlacer::flip_image(Mat & image)
 {
-    int image_type = cv::Mat::type(image);
-    size_t num_rows = image.rows;
-    size_t num_cols = image.cols;
+    // get some parameters relating to the data,
+    // including the number of channels and total
+    // elements in the data
+    int num_channels = image.channels();
+    uint8_t* imdata = (uint8_t*)image.data;
+    size_t num_elements = image.total();
 
-    for(MatIterator im_it_start = image.begin(), MatIterator im_it_end = image.begin(); im_it_start < im_it_end; ++im_it_start, --im_it_end)
+    // We're going to do this by linearizing the entire data
+    // and flipping the first and last elements, and then iterating by
+    // num_channels. This allows us to still remain in O(n) time,
+    // but also handle color or grayscale images regardless of
+    // the image type
+    // i points to a block of elements in data, and j points to each
+    // element in that block. We then swap the i+jth element with
+    // it's corresponding element at the end of the array, addressed by
+    // (num_elements - (num_channels)*(i+1) + j
+    for(size_t i = 0; i < (num_elements / num_channels) / 2; i += num_channels)
     {
-        std::swap(*im_it_start, *im_it_end);
+        for(int j = 0; j < num_channels; j++)
+        {
+            std::swap(imdata[i+j], imdata[num_elements - num_channels*(i+1) + j]);
+        }
     }
+
 }
 
 void Interlacer::read_first_video(const string & video_1_name)
@@ -124,7 +163,9 @@ void Interlacer::read_first_video(const string & video_1_name)
     video_1 = new VideoCapture();
     if(!video_1->open(video_1_name))
     {
-        throw std::invalid_argument("Bad file for video 1!");s
+        std::cout << "No file found for " << video_1_name << "!" << std::endl;
+        reset_videos();
+        exit(-1);
     }
 
 }
@@ -134,15 +175,19 @@ void Interlacer::read_second_video(const string & video_2_name)
     video_2 = new VideoCapture();
     if(!video_2->open(video_2_name))
     {
-        throw std::invalid_argument("Bad file for video 2!");
+        std::cout << "No file found for " << video_2_name << "!" << std::endl;
+        reset_videos();
+        exit(-1);
     }
 }
 
 void Interlacer::initialize_output_video(const string & video_output_name)
 {
     output_video = new VideoWriter();
-    if(!output_video->open(video_output_name, CV_FOURCC('j','p','e','g'), 30.0, cv::Size(height, width)))
+    if(!output_video->open(video_output_name, CV_FOURCC('M','J','P','G'), 1, cv::Size(width, height), false))
     {
-        throw std::bad_alloc("Bad file for initializing output video!");
+        std::cout << "Bad file initialization!" << std::endl;
+        reset_videos();
+        exit(-1);
     }
 }

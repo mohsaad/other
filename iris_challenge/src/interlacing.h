@@ -22,6 +22,7 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <exception>
+#include <string>
 #include <algorithm>
 
 using namespace cv;
@@ -48,10 +49,10 @@ class Interlacer
         Interlacer(const Interlacer & interlace);
 
         /* A different constructor with filename inputs. */
-        Interlacer(const string & video_1_name, const string & video_2_name);
+        Interlacer(const string & video_1_name, const string & video_2_name, const string & video_output_name);
 
         /* An initialization function for both videos */
-        void initialize_interlacer(const string & video_1_name, const string & video_2_name);
+        void initialize_interlacer(const string & video_1_name, const string & video_2_name, const string & video_output_name);
 
         /* interlace */
         void interlace();
@@ -64,10 +65,10 @@ class Interlacer
         /* Define two videocapture objects. This will be object that loads
         both our streams in. We will use these to read and write files in and
         out of our program. */
-        VideoCapture* video_1; // in this example, a
-        VideoCapture* video_2; // in this example, b
+        VideoCapture* video_1 = NULL; // in this example, a
+        VideoCapture* video_2 = NULL; // in this example, b
 
-        VideoWriter* output_video; // our output file writer.
+        VideoWriter* output_video = NULL; // our output file writer.
 
         /* Properties of the video files themselves. We need these to do some
         calculations regarding when to put in a frame. */
@@ -91,7 +92,7 @@ class Interlacer
         // A CPU-based image inverter.
         void flip_image(Mat & im);
 
-        cudaStream_t stream;
+        // cudaStream_t stream;
 
 };
 
